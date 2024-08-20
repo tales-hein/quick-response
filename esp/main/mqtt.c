@@ -12,6 +12,7 @@
 
 #define BROKER_URI       "mqtt://192.168.18.20:1883"
 #define WIFI_PROVISIONED BIT3
+#define MQTT_PROVISIONED BIT4
 
 // Global variables
 
@@ -24,10 +25,16 @@ bool who_am_i_sent     = false;
 bool signal_emiter     = false;
 bool interrupt_flag    = false;
 static const char *TAG = "MQTT_TEST";
-
 static esp_mqtt_client_handle_t client;
 uint8_t mac[6];
 char mac_str[18];
+
+void green_led_on(void);
+void red_led_on(void);
+void blue_led_on(void);
+void green_led_off(void);
+void red_led_off(void);
+void blue_led_off(void);
 
 static void publish_who_am_i(void)
 { 
@@ -63,17 +70,15 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-            
             printf("Subscribing to topic: %s\r\n", topic);
-            
             esp_mqtt_client_subscribe(client, topic, 0);
-            
             publish_who_am_i();
-
+            blue_led_off();
+            red_led_off();
+            xEventGroupSetBits(mqtt_event_group, MQTT_PROVISIONED);
             break;
         case MQTT_EVENT_DISCONNECTED:
-            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
-            
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");            
             break;
         case MQTT_EVENT_DATA:
             ESP_LOGI(TAG, "MQTT_EVENT_DATA");
