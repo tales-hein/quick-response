@@ -1,10 +1,9 @@
 #include <string.h>
-#include "freertos/FreeRTOS.h"
+#include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
-#include "esp_system.h"
 #include "esp_log.h"
-#include "esp_event.h"
 #include "mqtt_client.h"
 #include "esp_mac.h"
 
@@ -28,6 +27,7 @@ static const char *TAG = "MQTT_TEST";
 static esp_mqtt_client_handle_t client;
 uint8_t mac[6];
 char mac_str[18];
+QueueHandle_t send_queue;
 
 void green_led_on(void);
 void red_led_on(void);
@@ -40,7 +40,7 @@ static void publish_who_am_i(void)
 { 
     int msg_id = esp_mqtt_client_publish(
         client,
-        "sources/",
+        "/devices",
         mac_str,
         0,
         0,
@@ -92,8 +92,8 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 void publish_payload(char* payload_content, char* topic)
 { 
-    char buffer[64];
-    snprintf(buffer, 64, "%s/%s", topic, mac_str);
+    char buffer[128];
+    snprintf(buffer, 128, "%s/%s", topic, mac_str);
 
     int msg_id = esp_mqtt_client_publish(
         client,
@@ -111,6 +111,18 @@ void publish_payload(char* payload_content, char* topic)
     else 
     {
         ESP_LOGI("MQTT", "Sent publish successful, msg_id=%d", msg_id);
+    }
+}
+
+void _task_send_from_queue(void *pvParameters)
+{
+    while (1)
+    {
+        char buff[64];
+        if (xQueueReceive(send_queue, buff, 0) == pdPASS)
+        {
+            publish_payload(buff, "/analog-read");
+        }
     }
 }
 
@@ -146,4 +158,8 @@ void init_mqtt(void)
     esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
 
     esp_mqtt_client_start(client);
+
+    send_queue = xQueueCreate(10, sizeof(char[128]));
+
+    xTaskCreate(_task_send_from_queue, "send form queue", 4096, NULL, 15, NULL);
 }
